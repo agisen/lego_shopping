@@ -25,6 +25,26 @@ class AnyEc:
             except:
                 pass
 
+def acceptCookies(driver):
+    # wait until the AgeGate and the cookie popup are loaded
+    try:
+        element = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.XPATH, '//button[@class="AgeGatestyles__CookieDisclaimerButton-xudtvj-18 jOntou Button__Base-sc-1jdmsyi-0 dyNtvW"]'))
+            )
+    except TimeoutException:
+        print("Loading took too long, timeout!")
+
+    # accept cookie popup and AgeGate
+    element.click()
+    element = driver.find_element_by_xpath('//button[@data-test="age-gate-grown-up-cta"]')
+    element.click()
+
+    # accept 2nd cookie popup
+    element = driver.find_element_by_xpath('//button[@data-test="cookie-banner-normal-button"]')
+    element.click()
+
+    return driver
+
 def getItemPrice(driver, lego_id, amount, shop):
     if shop == 'SuT':
         return getItemPriceSuT(driver, lego_id, amount)
@@ -53,7 +73,7 @@ def getItemPriceSuT(driver, lego_id, amount, add_to_basket=False):
         element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, '//button[@ng-click="addToBasket(brick,$event)"]')))  
         # print ("Page \""+driver.title+"\" is ready!")
     except TimeoutException:
-        print ("Loading took too much time!")
+        print ("Loading took too long, timeout!")
 
     status = [0]
     # check if item is not available
@@ -64,8 +84,7 @@ def getItemPriceSuT(driver, lego_id, amount, add_to_basket=False):
         status[0] = 1
         status.append(lego_id)
         status.append("NA")
-
-    except NoSuchElementException:
+    except:
         # fill the item 'amount' times in the basket
         if amount > 200:
             amount = 200
@@ -89,48 +108,59 @@ def getItemPriceSuT(driver, lego_id, amount, add_to_basket=False):
     return (status)
 
 def getItemPricePaB(driver, lego_id, amount, add_to_basket=False):
-    element = driver.find_element_by_id('element_id-0')
+    element = driver.find_element_by_id('pab-search-input')
     element.clear()
     element.send_keys(lego_id)
     element.send_keys(Keys.RETURN)
 
+    # element = driver.find_element_by_xpath('//h2[@data-test="pab-search-total"]/span')
+    # element = driver.find_element(By.XPATH, '//h2[@data-test="pab-search-total"]')
+    # print(element.get_attribute('innerHTML'))
+
     # wait until result is loaded
+    time.sleep(1)
     try:
         WebDriverWait(driver, 10).until(AnyEc(
-            EC.text_to_be_present_in_element((By.XPATH, '//div[@class="pab-search__header-count"]'), "Anzeige: 0 von 0 steine"), 
-            EC.text_to_be_present_in_element((By.XPATH, '//div[@class="pab-search__header-count"]'), "Anzeige: 1 von 1 steine")))
-        # print ("Page \""+driver.title+"\" is ready!")
+            # EC.text_to_be_present_in_element((By.XPATH, '//div[@class="pab-search__header-count"]'), "Anzeige: 0 von 0 steine"), 
+            # EC.text_to_be_present_in_element((By.XPATH, '//div[@class="pab-search__header-count"]'), "Anzeige: 1 von 1 steine"),
+            EC.text_to_be_present_in_element((By.XPATH, '//h2[@data-test="pab-search-total"]'), "Showing 1-1 of 1 bricks"),
+            EC.text_to_be_present_in_element((By.XPATH, '//h2[@data-test="pab-search-total"]'), "Showing 1-0 of 0 bricks")
+        ))
+        # print('Gefunden!')
     except TimeoutException:
-        print ("Loading took too much time!")
+        print("Loading took too long, timeout!")
+        # print('Nicht gefunden!')
 
-    # element = driver.find_element_by_xpath('//div[@class="pab-search__header-count"]')
-    # available = "Anzeige: 1 von 1 steine" in (element.get_attribute('innerHTML'))
-    # if(available):
     status = [0]
     try:
-        element = driver.find_element_by_xpath('//span[@class="pab-item-summary__price"]')
+        element = driver.find_element_by_xpath('//span[@data-test="pab-item-price"]/span')
         price = element.get_attribute('innerHTML')
-        price = price.split()
+        price = price.split('&nbsp;')
+        # print('price',price)
 
         if add_to_basket:
-            element = driver.find_element_by_id('pab-item-summary__input')
+            element= driver.find_element_by_xpath('//button[@data-test="pab-item-btn-pick"]')
+            element.click()
+            # element = driver.find_element_by_id('undefined_undefined_pab-item-summary-input')
+            element= driver.find_element_by_xpath('//input[@data-test="number-input"]')
             element.clear()
             element.send_keys(amount)
 
-            element = driver.find_element_by_xpath('//button[@class="pab-item__btn-pick"]')
-            element.click()
+            # element = driver.find_element_by_xpath('//button[@class="pab-item__btn-pick"]')
+            # element.click()
 
         status.append(amount)
         status.append(price[0])
 
-    except WebDriverException:
+    except:
         print ("Item "+str(lego_id)+" is not available at PaB.")
         status[0] = 1
         status.append(lego_id)
         status.append("NA")
 
-    element = driver.find_element_by_xpath('//button[@class="pab-filters-basic__btn-clear"]')
-    element.click()
+    # element = driver.find_element_by_xpath('//button[@class="pab-filters-basic__btn-clear"]')
+    # element.click()
+    time.sleep(1)
 
     return status
 
@@ -213,18 +243,17 @@ def addToBasketWithPriceDifference(csvfile,driver1,driver2):
                 total_items += amount
     infile.close()
 
-
-    duration = divmod(time.time()-start_time,60)
-    print ()
-    print('Placed {} parts with {} items and a total cost of {:.2f} EUR in {:.0f} minutes and {:.1f} seconds in the shopping cart.'.format(total_parts,total_items,total_price,duration[0],duration[1]))
+    printSummary(total_parts, total_items, total_price, divmod(time.time()-start_time,60))
     if len(unavailable) > 0:
         print('Currently unavailable in both shops are {} parts. The IDs are {}'.format(len(unavailable),unavailable))
-    print('Buying {} parts with {} items at Pick-a-Brick saves a total amount of {:.2f} EUR.'.format(PaB_parts,Pab_items, total_saved))
+    print('Buying {} parts with {} items at Pick-a-Brick saves a total amount of {:.2f} EUR.'.format(PaB_parts, Pab_items, total_saved))
 
-def addToBasketFromCSV(infile,driver,shop='SuT'):
+
+def addToBasketFromCSV(infile,driver,shop):
     start_time = time.time()
     total_parts = 0
     total_items = 0
+    total_price = 0
     unavailable = []
 
     with open(infile, 'r') as csvfile:
@@ -241,34 +270,61 @@ def addToBasketFromCSV(infile,driver,shop='SuT'):
             if status[0] == 0:
                 total_parts += 1
                 total_items += status[1]
+                total_price += float(status[2].replace(',','.')) * amount                
             elif status[0] == 1:
                 unavailable.append(status[1])
 
     csvfile.close()
 
-    duration = divmod(time.time()-start_time,60)
-    print ()
-    print('Placed {} parts with {} items in {:.0f} minutes and {:.1f} seconds in the shopping cart.'.format(total_parts,total_items,duration[0],duration[1]))
+    printSummary(total_parts, total_items, total_price, divmod(time.time()-start_time,60))
     if len(unavailable) > 0:
-        print('{} parts are currently unavailable. The IDs are {}'.format(len(unavailable),unavailable))
+        print('Currently unavailable at >{}< are {} parts. The IDs are {}'.format(shop, len(unavailable), unavailable))
+
+def printSummary(total_parts, total_items, total_price, duration):
+    print('\n')
+    print('Placed {} parts with {} items and a total price of {:.2f} EUR in {:.0f} minutes and {:.1f} seconds in the shopping cart.'.format(total_parts,total_items,total_price,duration[0],duration[1]))
+
 
 def getDriverForSuT():
     # open window for SuT
     driver = webdriver.Firefox()
     driver.get('https://www.lego.com/de-de/service/replacementparts')
+    driver = acceptCookies(driver)
 
-    linkElem = driver.find_element_by_xpath('//a[@ng-click="showAgeAndCountryPopUp(3)"]')
-    linkElem.click()
+    # # close survey popup !!still experimental!!
+    # try:
+    #     # element = driver.find_element_by_id('IPEinvL104230')
+    #     # print('Survey popup detected.')
+    #     element = driver.find_element_by_xpath('//img[@src="https://www.lego.com/r/www/r/npssurvey/images/invitation5.png"]')
+    #     print('Survey popup at >SuT< detected.')
+    #     element = driver.find_element_by_xpath('//area[@alt="Nein"]')
+    #     # element.click()
+    #     driver.execute_script("arguments[0].click();", element)
+    #     print('...and closed.')
 
-    linkElem = driver.find_element_by_xpath('//input[@name="rpAgeAndCountryAgeField"]')
-    linkElem.send_keys("28")
-    linkElem.send_keys(Keys.RETURN)
+    # except NoSuchElementException:
+    #     print('No survey popup at >SuT< detected.')
 
-    try:
-        linkElem = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, '//input[@ng-model="itemNumber"]')))  
-        # print ("Page \""+driver.title+"\" is ready!")
-    except TimeoutException:
-        print ("Loading took too much time!")
+    # # fill age popup
+    # element = driver.find_element_by_xpath('//a[@ng-click="showAgeAndCountryPopUp(3)"]')
+    # element.click()
+
+    # element = driver.find_element_by_xpath('//input[@name="rpAgeAndCountryAgeField"]')
+    # element.send_keys("99")
+    # element.send_keys(Keys.RETURN)
+
+    # # accept cookie popup
+    # try:
+    #     element = driver.find_element_by_xpath('//button[@class="l-accept__close js-accept__close"]')
+    #     element.click()
+    # except:
+    #     pass
+
+    # try:
+    #     element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, '//input[@ng-model="itemNumber"]')))  
+    #     # print ("Page \""+driver.title+"\" is ready!")
+    # except TimeoutException:
+    #     print("Loading took too long, timeout!")
 
     return driver
 
@@ -276,26 +332,35 @@ def getDriverForPaB():
     # open window for PaB
     driver = webdriver.Firefox()
     driver.get('https://shop.lego.com/de-DE/Pick-a-Brick')
-
+    driver = acceptCookies(driver)
     return driver
 
-def getDriverForLego(shop='SuT'):
+
+def getDriverForLego(shop):
     if shop == 'SuT':
         return getDriverForSuT()
     elif shop == 'PaB':
         return getDriverForPaB()
     else:
-        raise(Exception('Please select either >SuT< or >Pab< as shop.'))
+        raise(Exception('Please select either >SuT< or >PaB< as shop.'))
 
 
-
+# execute with python3
 if __name__ == "__main__":
-    # use with python3
-    if any(sys.argv[1] in s for s in ['ATLAS_full.csv', 'ATLAS_mid-size.csv', 'ATLAS_mini.csv', 'LHC_micro_full.csv']):
-        createPriceDifferenceCSV(sys.argv[1],getDriverForLego('SuT'),getDriverForLego('PaB'))
+    if sys.argv[1] == 'test':
+        lego_id = 302001
+
+        driver = getDriverForPaB()
+        status = getItemPricePaB(driver, lego_id, 2, add_to_basket=True)
+        print(status)
+
+        # driver = getDriverForSuT()
+        # status = getItemPriceSuT(driver, lego_id, 1, add_to_basket=True)
+        # print(status)
+    elif any(sys.argv[1] in s for s in ['ATLAS_full.csv', 'ATLAS_mid-size.csv', 'ATLAS_mini.csv', 'ATLAS_micro.csv' 'LHC_micro_full.csv']):
+        # createPriceDifferenceCSV(sys.argv[1],getDriverForLego('SuT'),getDriverForLego('PaB'))
         # addToBasketWithPriceDifference('price_difference_'+sys.argv[1],getDriverForLego('SuT'),getDriverForLego('PaB'))
         # addToBasketFromCSV(sys.argv[1],getDriverForLego('SuT'),'SuT')
-        # addToBasketFromCSV(sys.argv[1],getDriverForLego('PaB'),'PaB')
+        addToBasketFromCSV(sys.argv[1],getDriverForLego('PaB'),'PaB')
     else:
-        raise(Exception('Please provide part list.'))
-
+        raise(Exception('Please provide a LEGO part list (.csv) as argument.'))
