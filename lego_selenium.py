@@ -138,7 +138,7 @@ def getItemPricePaB(driver, lego_id, amount, add_to_basket=False):
     # print(element.get_attribute('innerHTML'))
 
     # wait until result is loaded
-    # time.sleep(.2)
+    time.sleep(1.0)
     try:
         WebDriverWait(driver, 10).until(AnyEc(
             # EC.text_to_be_present_in_element((By.XPATH, '//div[@class="pab-search__header-count"]'), "Anzeige: 0 von 0 steine"), 
@@ -157,6 +157,7 @@ def getItemPricePaB(driver, lego_id, amount, add_to_basket=False):
         # print('price',price)
 
         if add_to_basket:
+            time.sleep(.8)
             element = driver.find_element_by_xpath('//button[@kind="primary"][@data-test="pab-item-btn-pick"]')
             element.click()
             # WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, '//input[@data-test="quantity-value"]'))) 
@@ -179,6 +180,9 @@ def getItemPricePaB(driver, lego_id, amount, add_to_basket=False):
             status.append("NA")
         else:
             raise e
+    except ElementClickInterceptedException as e:
+        print('Element not clickable!')
+        raise e
 
     # element = driver.find_element_by_xpath('//button[@class="pab-filters-basic__btn-clear"]')
     # element.click()
@@ -216,7 +220,7 @@ def createPriceDifferenceCSV(csvfile,driver1,driver2):
 
     duration = divmod(time.time()-start_time,60)
     print ()
-    print('Priced {} elements in {:.0f} minutes and {:.1f} seconds.'.format(number_of_elements,duration[0],duration[1]))
+    print('Priced {} parts in {:.0f} minutes and {:.1f} seconds.'.format(number_of_elements,duration[0],duration[1]))
     if len(unavailable) > 0:
         print('Currently unavailable in both shops are {} parts. The IDs are {}'.format(len(unavailable),unavailable))
 
@@ -225,6 +229,8 @@ def addToBasketWithPriceDifference(csvfile,driver1,driver2):
     total_parts = 0
     total_items = 0
     total_price = 0
+    total_price_sut = 0
+    total_price_pab = 0
     total_saved = 0
     PaB_parts = 0
     Pab_items = 0
@@ -244,20 +250,24 @@ def addToBasketWithPriceDifference(csvfile,driver1,driver2):
                 if row[2] == 'NA':
                     status = addToBasket(driver2, lego_id, amount, 'PaB')
                     total_price += float(row[3].replace(',','.')) * amount
+                    total_price_pab += float(row[3].replace(',','.')) * amount
                     PaB_parts += 1
                     Pab_items += amount
                 elif row[3] == 'NA':
                     status = addToBasket(driver1, lego_id, amount, 'SuT')
                     total_price += float(row[2].replace(',','.')) * amount
+                    total_price_sut += float(row[2].replace(',','.')) * amount
                 else:
                     price_SuT = float(row[2].replace(',','.'))
                     price_PaB = float(row[3].replace(',','.'))
                     if price_PaB - price_SuT >= 0:
                         status = addToBasket(driver1, lego_id, amount, 'SuT')
                         total_price += price_SuT * amount
+                        total_price_sut += price_SuT * amount
                     else:
                         status = addToBasket(driver2, lego_id, amount, 'PaB')
                         total_price += price_PaB * amount
+                        total_price_pab += price_PaB * amount
                         total_saved += (price_SuT - price_PaB) * amount
                         PaB_parts += 1
                         Pab_items += amount
@@ -268,6 +278,7 @@ def addToBasketWithPriceDifference(csvfile,driver1,driver2):
     printSummary(total_parts, total_items, total_price, divmod(time.time()-start_time,60))
     if len(unavailable) > 0:
         print('Currently unavailable in both shops are {} parts. The IDs are {}'.format(len(unavailable),unavailable))
+    print('Calculated shopping cart values: "SuT" {:.2f} EUR, "PaB" {:.2f} EUR. Please verify.'.format(total_price_sut,total_price_pab))
     print('Buying {} parts with {} items at Pick-a-Brick saves a total amount of {:.2f} EUR.'.format(PaB_parts, Pab_items, total_saved))
 
 
